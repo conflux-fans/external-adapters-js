@@ -55,6 +55,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
   - `cryptoapis`
 - dxFeed now uses OTC feeds for FTSE and N225, rather than licensed data feeds
 - Migrated to Typescript
+  - `google-finance`
   - `kaiko`
   - `marketstack`
   - `metalsapi`
