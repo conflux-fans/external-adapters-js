@@ -6,6 +6,7 @@ import {
   WrappedAdapterResponse,
 } from '@chainlink/types'
 import { v4 as uuidv4 } from 'uuid'
+import { withCache, defaultOptions, redactOptions } from './cache'
 
 export const isObject = (o: unknown): boolean =>
   o !== null && typeof o === 'object' && Array.isArray(o) === false

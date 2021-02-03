@@ -3,7 +3,6 @@ import hash from 'object-hash'
 import * as local from './local'
 import * as redis from './redis'
 import { parseBool, uuid, delay, exponentialBackOffMs, getWithCoalescing } from '../util'
-import { ExecuteWrappedResponse, AdapterRequest, WrappedAdapterResponse } from '@chainlink/types'
 import { RedisOptions } from './redis'
 
 const DEFAULT_CACHE_TYPE = 'local'
@@ -70,13 +69,12 @@ export const redactOptions = (options: CacheOptions) => ({
       : local.redactOptions(options.cacheOptions),
 })
 
-export const withCache = async (
-  execute: ExecuteWrappedResponse,
+export const withCache = async <F extends Function, D extends { [key: string]: any }>(
+  execute: F,
   options: CacheOptions = defaultOptions(),
 ) => {
   // If disabled noop
-  if (!options.enabled) return (data: AdapterRequest) => execute(data)
-
+  if (!options.enabled) return (data: D) => execute(data)
   const cache = await options.cacheBuilder(options.cacheOptions)
 
   // Algorithm we use to derive entry key
@@ -86,7 +84,7 @@ export const withCache = async (
     excludeKeys: (props: string) => options.key.ignored.includes(props),
   }
 
-  const _getKey = (data: AdapterRequest) => `${options.key.group}:${hash(data, hashOptions)}`
+  const _getKey = (data: D) => `${options.key.group}:${hash(data, hashOptions)}`
   const _getCoalescingKey = (key: string) => `inFlight:${key}`
   const _setInFlightMarker = async (key: string, maxAge: number) => {
     if (!options.requestCoalescing.enabled) return
@@ -99,19 +97,20 @@ export const withCache = async (
     logger.debug(`Request coalescing: DEL ${key}`)
   }
 
-  const _getMaxAge = (data: AdapterRequest): any => {
+  const _getMaxAge = (data: D): any => {
     if (!data || !data.data) return cache.options.maxAge
-    if (isNaN(data.data.maxAge as number)) return cache.options.maxAge
+    if (isNaN(data?.data.maxAge as number)) return cache.options.maxAge
     return Number(data.data.maxAge) || cache.options.maxAge
   }
 
-  const _executeWithCache = async (data: AdapterRequest) => {
+  const _executeWithCache = async (data: D) => {
     const key = _getKey(data)
     const coalescingKey = _getCoalescingKey(key)
     const maxAge = _getMaxAge(data)
     // Add successful result to cache
-    const _cacheOnSuccess = async ({ statusCode, data }: WrappedAdapterResponse) => {
-      if (statusCode === 200) {
+    const _cacheOnSuccess = async ({ statusCode, status, data }: any) => {
+      // TODO: Consistency in status vs. statusCode
+      if (statusCode === 200 || status === 200) {
         const entry = { statusCode, data, maxAge }
         await cache.set(key, entry, maxAge)
         logger.debug(`Cache: SET ${key}`, entry)
@@ -170,7 +169,7 @@ export const withCache = async (
   }
 
   // Middleware wrapped execute fn which cleans up after
-  return async (data: AdapterRequest) => {
+  return async (data: D) => {
     const result = await _executeWithCache(data)
     // Clean the connection
     await cache.close()

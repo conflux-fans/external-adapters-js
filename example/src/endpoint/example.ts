@@ -1,7 +1,7 @@
-import { Requester, Validator } from '@chainlink/external-adapter'
-import { AdapterRequest, Config } from '@chainlink/types'
+import { Validator } from '@chainlink/external-adapter'
+import { ExecuteInContext, Config } from '@chainlink/types'
 
-export const Name = 'example'
+export const NAME = 'example'
 
 const customError = (data: any) => data.Response === 'Error'
 
@@ -10,10 +10,11 @@ const customParams = {
   quote: ['quote', 'to', 'market'],
 }
 
-export const execute = async (config: Config, request: AdapterRequest) => {
+export const execute: ExecuteInContext<Config> = async (request, { config, http }) => {
   const validator = new Validator(request, customParams)
   if (validator.error) throw validator.error
 
+  const jobRunID = validator.validated.id
   const base = validator.validated.data.base
   const quote = validator.validated.data.quote
   const url = `price`
@@ -23,8 +24,14 @@ export const execute = async (config: Config, request: AdapterRequest) => {
     quote,
   }
 
-  const reqConfig = { ...config.api, params, baseURL: 'http://localhost:18081', url }
+  const options = { ...config.api, params, url }
 
-  const response = await Requester.request(reqConfig, customError)
-  return Requester.validateResultNumber(response.data, ['price'])
+  const response = await http.request(options, customError)
+  const result = http.validateResultNumber(response.data, ['price'])
+
+  return http.success(jobRunID, {
+    data: { result },
+    result,
+    status: 200,
+  })
 }

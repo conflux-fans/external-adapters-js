@@ -48,7 +48,11 @@ const withLogger = (execute: ExecuteWrappedResponse) => async (data: AdapterRequ
   return result
 }
 
-const middleware = [withLogger, skipOnError(withCache), withStatusCode]
+const middleware = [
+  withLogger,
+  skipOnError((execute) => withCache<ExecuteWrappedResponse, AdapterRequest>(execute)),
+  withStatusCode,
+]
 
 // Init all middleware, and return a wrapped execute fn
 const withMiddleware = async (execute: ExecuteWrappedResponse) => {

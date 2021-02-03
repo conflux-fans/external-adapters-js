@@ -1,26 +1,24 @@
 import { Requester, Validator, AdapterError } from '@chainlink/external-adapter'
-import { ExecuteWithConfig, ExecuteFactory } from '@chainlink/types'
-import { makeConfig, DEFAULT_ENDPOINT } from './config'
+import { Config, ExecuteInContext, ExecuteFactory } from '@chainlink/types'
+import { makeContext, DEFAULT_ENDPOINT } from './context'
 import { example } from './endpoint'
 
 const inputParams = {
   endpoint: false,
 }
 
-export const execute: ExecuteWithConfig = async (request, config) => {
+export const execute: ExecuteInContext<Config> = async (request, context) => {
   const validator = new Validator(request, inputParams)
   if (validator.error) throw validator.error
 
-  Requester.logConfig(config)
+  Requester.logConfig(context.config)
 
   const jobRunID = validator.validated.id
   const endpoint = validator.validated.data.endpoint || DEFAULT_ENDPOINT
 
-  let result
   switch (endpoint) {
-    case example.Name: {
-      result = await example.execute(config, request)
-      break
+    case example.NAME: {
+      return await example.execute(request, context)
     }
     default: {
       throw new AdapterError({
@@ -30,14 +28,8 @@ export const execute: ExecuteWithConfig = async (request, config) => {
       })
     }
   }
-
-  return Requester.success(jobRunID, {
-    data: { result },
-    result,
-    status: 200,
-  })
 }
 
-export const makeExecute: ExecuteFactory = (config) => {
-  return async (request) => execute(request, config || makeConfig())
+export const makeExecute: ExecuteFactory<Config> = (context) => {
+  return async (request) => execute(request, context || makeContext())
 }
